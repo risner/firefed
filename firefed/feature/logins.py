@@ -1,6 +1,7 @@
 import base64
 import ctypes
 from ctypes import CDLL, byref, c_char_p, c_void_p, cast, string_at
+from ctypes.util import find_library
 import getpass
 
 import attr
@@ -38,7 +39,15 @@ class NSSWrapper:
         try:
             self.nss = nss = CDLL(libnss)
         except OSError as e:
-            fatal('Can\'t open libnss: %s' % e)
+            auto = find_library('nss3')
+            if auto is None:
+                fatal("Can't open libnss: %s" % e)
+
+            try:
+                self.nss = nss = CDLL(auto)
+            except OSError as e2:
+                fatal("Can't open auto-detected libnss '%s': %s" % (auto, e2))
+
         nss.PR_ErrorToString.restype = c_char_p
         nss.PR_ErrorToName.restype = c_char_p
         nss.PK11_GetInternalKeySlot.restype = c_void_p
@@ -94,7 +103,7 @@ class Logins(Feature):
     """
 
     libnss = arg('-l', '--libnss', default='libnss3.so',
-                 help='path to libnss3')
+                   help='path to NSS library (auto-detected if default fails)')
     password = arg('-p', '--master-password',
                    help='profile\'s master password (If not set, an empty '
                         'password is tried. If that fails, you\'re prompted.)')
